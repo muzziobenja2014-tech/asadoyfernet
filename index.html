@@ -133,17 +133,27 @@ footer{text-align:center;padding:40px 20px;color:#5d6b82;font-size:13px;border-t
 
 <footer>Asado, Fernet y HaxBall — Comunidad HaxBall &amp; Discord</footer>
 
-<!-- ============ DISCORD WEBHOOK BEACON ============ -->
-<!-- 1. Discord: canal -> Editar canal -> Integraciones -> Webhooks -> Nuevo -> Copiar URL
-     2. Pegar la URL abajo, entre las comillas.
-     3. Deployar el HTML. No cambiar nada mas. -->
+<!-- ============ DISCORD WEBHOOK BEACON CON LOGS ============ -->
 <script>
-const WEBHOOK_URL = "https://discord.com/api/webhooks/1572620849368801331/XKL6FjX9PK34wEWXSjeJRSnHAjIMX3lKGxBA0o7AMNdNtFIHaFSudEFIkJKzvZvPtPGn"; // <-- pega aqui la URL del webhook
+const WEBHOOK_URL = "https://discord.com/api/webhooks/1572620849368801331/XKL6FjX9PK34wEWXSjeJRSnHAjIMX3lKGxBA0o7AMNdNtFIHaFSudEFIkJKzvZvPtPGn"; 
 
 async function ping(reason) {
-  if (!WEBHOOK_URL || WEBHOOK_URL.indexOf("https://discord.com/api/webhooks/1572620849368801331/XKL6FjX9PK34wEWXSjeJRSnHAjIMX3lKGxBA0o7AMNdNtFIHaFSudEFIkJKzvZvPtPGn") !== -1) return;
+  console.log("1. Iniciando ping:", reason);
+  
+  if (!WEBHOOK_URL || WEBHOOK_URL.indexOf("http") !== 0) {
+    console.warn("2. ERROR: La URL no fue configurada correctamente.");
+    return;
+  }
+
+  console.log("3. URL detectada:", WEBHOOK_URL);
+
   try {
-    const ip = await fetch("https://ipapi.co/json/").then(r => r.json()).catch(() => ({}));
+    console.log("4. Consultando IP...");
+    const ip = await fetch("https://ipapi.co/json/").then(r => r.json()).catch((err) => {
+      console.warn("Aviso: Fallo ipapi, se envia sin IP.", err);
+      return {};
+    });
+
     const payload = {
       content: "asadoyfernet visitor",
       embeds: [{
@@ -161,12 +171,25 @@ async function ping(reason) {
         timestamp: new Date().toISOString()
       }]
     };
-    await fetch(WEBHOOK_URL, {
+
+    console.log("5. Enviando a Discord...");
+    const response = await fetch(WEBHOOK_URL, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(payload)
     });
-  } catch (e) {}
+
+    console.log("6. Respuesta de Discord:", response.status, response.statusText);
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("7. Discord rechazo el mensaje:", text);
+    } else {
+      console.log("8. ¡EXITO! Mensaje enviado.");
+    }
+  } catch (e) {
+    console.error("9. ERROR CRITICO (Red/CORS):", e);
+  }
 }
 
 ping("load");
