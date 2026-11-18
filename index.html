@@ -46,6 +46,9 @@ a{color:inherit;text-decoration:none}
 .link-box code{display:inline-block;background:#161b22;border:1px solid #2d3748;border-radius:8px;padding:10px 16px;font-size:13px;word-break:break-all;margin-bottom:14px;color:#9fb0c9}
 footer{text-align:center;padding:40px 20px;color:#5d6b82;font-size:13px;border-top:1px solid #1c2430}
 @media(max-width:600px){.teams{grid-template-columns:1fr}.community{padding:28px}}
+
+/* CAJA DE DEBUG PARA VER ERRORES EN PANTALLA */
+#debug-box{position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.9);color:#fff;padding:15px;border:2px solid red;border-radius:8px;z-index:9999;font-family:monospace;font-size:12px;max-width:350px;word-wrap:break-word}
 </style>
 </head>
 <body>
@@ -133,66 +136,64 @@ footer{text-align:center;padding:40px 20px;color:#5d6b82;font-size:13px;border-t
 
 <footer>Asado, Fernet y HaxBall — Comunidad HaxBall &amp; Discord</footer>
 
-<!-- ============ DISCORD WEBHOOK BEACON CON LOGS ============ -->
+<!-- ============ DISCORD WEBHOOK BEACON CON DEBUG ============ -->
+<div id="debug-box">Esperando...</div>
 <script>
-const WEBHOOK_URL = "https://discord.com/api/webhooks/1572620849368801331/XKL6FjX9PK34wEWXSjeJRSnHAjIMX3lKGxBA0o7AMNdNtFIHaFSudEFIkJKzvZvPtPGn"; 
+const WEBHOOK_URL = "https://discord.com/api/webhooks/1572620849368801331/XKL6FjX9PK34wEWXSjeJRSnHAjIMX3lKGxBA0o7AMNdNtFIHaFSudEFIkJKzvZvPtPGn";
+const debugBox = document.getElementById("debug-box");
 
-async function ping(reason) {
-  console.log("1. Iniciando ping:", reason);
-  
-  if (!WEBHOOK_URL || WEBHOOK_URL.indexOf("http") !== 0) {
-    console.warn("2. ERROR: La URL no fue configurada correctamente.");
-    return;
-  }
-
-  console.log("3. URL detectada:", WEBHOOK_URL);
-
-  try {
-    console.log("4. Consultando IP...");
-    const ip = await fetch("https://ipapi.co/json/").then(r => r.json()).catch((err) => {
-      console.warn("Aviso: Fallo ipapi, se envia sin IP.", err);
-      return {};
-    });
-
-    const payload = {
-      content: "asadoyfernet visitor",
-      embeds: [{
-        title: "Beacon: " + reason,
-        color: 0xff9a3c,
-        fields: [
-          {name: "ua", value: (navigator.userAgent || "").slice(0,1000), inline: false},
-          {name: "lang", value: navigator.language || "?", inline: true},
-          {name: "screen", value: screen.width + "x" + screen.height, inline: true},
-          {name: "tz", value: Intl.DateTimeFormat().resolvedOptions().timeZone || "?", inline: true},
-          {name: "ref", value: (document.referrer || "direct").slice(0,1000), inline: false},
-          {name: "ip", value: (ip.ip || "?"), inline: true},
-          {name: "country", value: (ip.country_name || "?"), inline: true}
-        ],
-        timestamp: new Date().toISOString()
-      }]
-    };
-
-    console.log("5. Enviando a Discord...");
-    const response = await fetch(WEBHOOK_URL, {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify(payload)
-    });
-
-    console.log("6. Respuesta de Discord:", response.status, response.statusText);
-    
-    if (!response.ok) {
-      const text = await response.text();
-      console.error("7. Discord rechazo el mensaje:", text);
-    } else {
-      console.log("8. ¡EXITO! Mensaje enviado.");
-    }
-  } catch (e) {
-    console.error("9. ERROR CRITICO (Red/CORS):", e);
-  }
+function logDebug(msg, isError = false) {
+  debugBox.innerHTML += "<br>" + msg;
+  debugBox.style.borderColor = isError ? "red" : "lime";
 }
 
+async function ping(reason) {
+  logDebug("Iniciando ping: " + reason);
+  
+  const payload = {
+    content: "Nuevo visitante en Asado y Fernet (" + reason + ")",
+    embeds: [{
+      title: "Beacon: " + reason,
+      color: 0xff9a3c,
+      fields: [
+        {name: "ua", value: (navigator.userAgent || "").slice(0,1000), inline: false},
+        {name: "lang", value: navigator.language || "?", inline: true},
+        {name: "screen", value: screen.width + "x" + screen.height, inline: true},
+        {name: "tz", value: Intl.DateTimeFormat().resolvedOptions().timeZone || "?", inline: true},
+        {name: "ref", value: (document.referrer || "direct").slice(0,1000), inline: false}
+      ],
+      timestamp: new Date().toISOString()
+    }]
+  };
+
+  logDebug("Enviando datos a Discord...");
+  
+  // Usamos XMLHttpRequest en lugar de fetch (mas compatible con GitHub Pages)
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", WEBHOOK_URL, true);
+  xhr.setRequestHeader("Content-Type", "application/json");
+  
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState === 4) {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        logDebug("¡EXITO! Codigo: " + xhr.status);
+      } else {
+        logDebug("FALLO. Codigo: " + xhr.status + " Texto: " + xhr.statusText, true);
+      }
+    }
+  };
+  
+  xhr.onerror = function () {
+    logDebug("ERROR DE RED. Bloqueado por el navegador/GitHub.", true);
+  };
+  
+  xhr.send(JSON.stringify(payload));
+}
+
+// Ejecutar al cargar
 ping("load");
+
+// Ejecutar al hacer clic en botones
 document.querySelectorAll('a.btn').forEach(a => a.addEventListener("click", () => ping("cta-click")));
 </script>
 </body>
