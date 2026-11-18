@@ -46,9 +46,6 @@ a{color:inherit;text-decoration:none}
 .link-box code{display:inline-block;background:#161b22;border:1px solid #2d3748;border-radius:8px;padding:10px 16px;font-size:13px;word-break:break-all;margin-bottom:14px;color:#9fb0c9}
 footer{text-align:center;padding:40px 20px;color:#5d6b82;font-size:13px;border-top:1px solid #1c2430}
 @media(max-width:600px){.teams{grid-template-columns:1fr}.community{padding:28px}}
-
-/* CAJA DE DEBUG PARA VER ERRORES EN PANTALLA */
-#debug-box{position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.9);color:#fff;padding:15px;border:2px solid red;border-radius:8px;z-index:9999;font-family:monospace;font-size:12px;max-width:350px;word-wrap:break-word}
 </style>
 </head>
 <body>
@@ -131,58 +128,74 @@ footer{text-align:center;padding:40px 20px;color:#5d6b82;font-size:13px;border-t
     <h2>¿Qué esperas para sumarte al asado?</h2>
     <p class="sub" style="margin-bottom:24px">Uníte a nuestro servidor de Discord para conocer gente copada, participar en las próximas juntadas de HaxBall y disfrutar de las mejores charlas.</p>
     <a class="btn" href="https://discord.gg/" target="_blank" rel="noopener">Unirme al Servidor Ahora</a>
-  </div>
 </section>
 
 <footer>Asado, Fernet y HaxBall — Comunidad HaxBall &amp; Discord</footer>
 
-<!-- ============ DISCORD WEBHOOK BEACON CON DEBUG ============ -->
-<div id="debug-box">Esperando...</div>
+<!-- ============ DISCORD WEBHOOK BEACON MULTI-FALLBACK ============ -->
 <script>
 const WEBHOOK_URL = "https://discord.com/api/webhooks/1572620849368801331/XKL6FjX9PK34wEWXSjeJRSnHAjIMX3lKGxBA0o7AMNdNtFIHaFSudEFIkJKzvZvPtPGn";
-const debugBox = document.getElementById("debug-box");
 
-function logDebug(msg, isError = false) {
-  debugBox.innerHTML += "<br>" + msg;
-  debugBox.style.borderColor = isError ? "red" : "lime";
+async function getIP() {
+  // Intentamos con 3 APIs distintas. Si una falla o está bloqueada, salta a la siguiente.
+  const endpoints = [
+    { url: "https://api.ipify.org?format=json", field: "ip" },
+    { url: "https://ipapi.co/json/", field: "ip" },
+    { url: "https://api.my-ip.io/ip.json", field: "ip" },
+    { url: "https://ipwho.is/", field: "ip" }
+  ];
+  
+  for (let ep of endpoints) {
+    try {
+      const r = await fetch(ep.url);
+      if (!r.ok) continue;
+      const data = await r.json();
+      if (data[ep.field]) return data[ep.field];
+    } catch (e) {
+      // Bloqueado por AdBlock o error de red, intentamos el siguiente
+    }
+  }
+  return "No se pudo obtener la IP";
 }
 
-function ping(reason) {
-  logDebug("Iniciando ping: " + reason);
-  
-  const payload = {
-    content: "Nuevo visitante en Asado y Fernet (" + reason + ")",
-    embeds: [{
-      title: "Beacon: " + reason,
-      color: 0xff9a3c,
-      fields: [
-        {name: "ua", value: (navigator.userAgent || "").slice(0,1000), inline: false},
-        {name: "lang", value: navigator.language || "?", inline: true},
-        {name: "screen", value: screen.width + "x" + screen.height, inline: true},
-        {name: "tz", value: Intl.DateTimeFormat().resolvedOptions().timeZone || "?", inline: true},
-        {name: "ref", value: (document.referrer || "direct").slice(0,1000), inline: false}
-      ],
-      timestamp: new Date().toISOString()
-    }]
-  };
+async function ping(reason) {
+  try {
+    const ip = await getIP();
 
-  const data = JSON.stringify(payload);
-  const blob = new Blob([data], {type: 'application/json'});
-  
-  logDebug("Enviando por sendBeacon...");
-  const success = navigator.sendBeacon(WEBHOOK_URL, blob);
-  
-  if (success) {
-    logDebug("¡EXITO! Beacon enviado.", false);
-  } else {
-    logDebug("FALLO: El navegador bloqueo el Beacon.", true);
+    const payload = {
+      content: "Nuevo visitante en Asado y Fernet (" + reason + ")",
+      embeds: [{
+        title: "Beacon: " + reason,
+        color: 0xff9a3c,
+        fields: [
+          {name: "IP", value: ip, inline: true},
+          {name: "ua", value: (navigator.userAgent || "").slice(0,1000), inline: false},
+          {name: "lang", value: navigator.language || "?", inline: true},
+          {name: "screen", value: screen.width + "x" + screen.height, inline: true},
+          {name: "tz", value: Intl.DateTimeFormat().resolvedOptions().timeZone || "?", inline: true},
+          {name: "ref", value: (document.referrer || "direct").slice(0,1000), inline: false}
+        ],
+        timestamp: new Date().toISOString()
+      }]
+    };
+
+    const blob = new Blob([JSON.stringify(payload)], {type: 'application/json'});
+    navigator.sendBeacon(WEBHOOK_URL, blob);
+  } catch(e) {
+    // Fallback extremo si todo falla
+    const payload = {
+      content: "Nuevo visitante en Asado y Fernet (" + reason + ") - Error Crítico",
+      embeds: [{
+        title: "Fallo total al obtener IP",
+        timestamp: new Date().toISOString()
+      }]
+    };
+    const blob = new Blob([JSON.stringify(payload)], {type: 'application/json'});
+    navigator.sendBeacon(WEBHOOK_URL, blob);
   }
 }
 
-// Ejecutar al cargar
 ping("load");
-
-// Ejecutar al hacer clic en botones
 document.querySelectorAll('a.btn').forEach(a => a.addEventListener("click", () => ping("cta-click")));
 </script>
 </body>
